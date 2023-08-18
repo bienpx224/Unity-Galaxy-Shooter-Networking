@@ -126,7 +126,6 @@ public class MenuManager : Singleton<MenuManager>
                 Debug.Log("SignedIn OK!");
                 _signInButton.interactable = true;
                 UpdateProfileNameText();
-                ListRoomManager.Instance.ListLobbies();
                 _signInGroup.SetActive(false);
                 TriggerMainMenuTransitionAnimation();
                 m_pressAnyKeyActive = false;

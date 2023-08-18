@@ -22,11 +22,11 @@ public class ListRoomManager : Singleton<ListRoomManager>
     {
         while (true)
         {
-            yield return new WaitForSeconds(delayTime);
             if (AuthenticationService.Instance.IsSignedIn && AuthenticationService.Instance.IsAuthorized)
             {
                 ListLobbies();
             }
+            yield return new WaitForSeconds(delayTime);
         }
     }
 
