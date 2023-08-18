@@ -12,11 +12,9 @@ public class ListRoomManager : Singleton<ListRoomManager>
     [SerializeField] private Transform _listRoomContentTransform;
     [SerializeField] private RoomItem _roomItemPrefab;
     public List<RoomItem> listRoomItem = new();
-    public Lobby lobby;
 
     private void Start()
     {
-        ListLobbies();
         StartCoroutine(IEGetListLobbies());
     }
 
@@ -51,13 +49,13 @@ public class ListRoomManager : Singleton<ListRoomManager>
             };
 
             QueryResponse queryResponse = await Lobbies.Instance.QueryLobbiesAsync(queryLobbiesOptions);
-
+            Debug.Log("= Get List Lobbies Count : " + queryResponse.Results.Count);
             /* Disative all old lobby item in list */
             foreach (Transform child in _listRoomContentTransform)
             {
                 child.gameObject.SetActive(false);
             }
-
+        
             listRoomItem.Clear();
             /* Show every lobby item in list */
             int i = 0;
@@ -91,9 +89,23 @@ public class ListRoomManager : Singleton<ListRoomManager>
 
     public async void JoinLobbyByLobbyId(string lobbyId)
     {
-        NetworkManager.Singleton.StartClient();
-        lobby = await LobbyService.Instance.JoinLobbyByIdAsync(lobbyId);
+        StartCoroutine(Join(lobbyId));
+        
+    }
+    private IEnumerator Join(string id)
+    {
+        LoadingFadeEffect.Instance.FadeAll();
 
-        Debug.Log($"Join lobby Id {lobby.Id} has code {this.lobby.LobbyCode}");
+        yield return new WaitUntil(() => LoadingFadeEffect.s_canLoad);
+
+        NetworkManager.Singleton.StartClient();
+        JoinLobby(id);
+    }
+
+    private async void JoinLobby(string id)
+    {
+        Lobby _lobby = await LobbyService.Instance.JoinLobbyByIdAsync(id);
+        MenuManager.Instance.lobby = _lobby;
+        Debug.Log($"Join lobby Id {_lobby.Id} has code {_lobby.LobbyCode}");
     }
 }

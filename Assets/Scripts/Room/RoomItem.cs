@@ -23,6 +23,7 @@ public class RoomItem : MonoBehaviour
         _nameRoomText.text = name;
         _id = id;
         _code = code;
+        this.gameObject.SetActive(true);
     }
     
     /* Set Callback when click Join button */

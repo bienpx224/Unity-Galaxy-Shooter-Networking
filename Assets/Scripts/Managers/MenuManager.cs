@@ -1,40 +1,48 @@
 using System;
 using Unity.Netcode;
-
 using UnityEngine;
 using System.Collections;
+using Tashi.NetworkTransport;
 using TMPro;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
+using Unity.Services.Lobbies;
+using Unity.Services.Lobbies.Models;
 using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
-public class MenuManager : MonoBehaviour
+public class MenuManager : Singleton<MenuManager>
 {
-    [SerializeField]
-    private Animator m_menuAnimator;
+    [SerializeField] private Animator m_menuAnimator;
 
-    [SerializeField]
-    private CharacterDataSO[] m_characterDatas;
+    [SerializeField] private CharacterDataSO[] m_characterDatas;
 
-    [SerializeField]
-    private AudioClip m_confirmClip;
+    [SerializeField] private AudioClip m_confirmClip;
 
     private bool m_pressAnyKeyActive = true;
     private const string k_enterMenuTriggerAnim = "enter_menu";
 
-    [SerializeField]
-    private SceneName nextScene = SceneName.CharacterSelection;
+    [SerializeField] private SceneName nextScene = SceneName.CharacterSelection;
 
-    [Header("Sign in")] 
-    [SerializeField] private GameObject _signInGroup;
+    [Header("Sign in")] [SerializeField] private GameObject _signInGroup;
     [SerializeField] private Button _signInButton;
     [SerializeField] private TMP_InputField _nameInputText;
     [SerializeField] private TextMeshProUGUI _nameText;
+
+    [Header("Create Room/Lobby")] [SerializeField]
+    private TMP_InputField _maxPlayerInRoomInputField;
+
+    public Lobby lobby;
+    public bool isHost = false;
+    public float nextHeartbeat;
+    public float nextLobbyRefresh;
+    private TashiNetworkTransport NetworkTransport => NetworkManager.Singleton.NetworkConfig.NetworkTransport as TashiNetworkTransport;
 
     private void Awake()
     {
         UnityServicesInit();
     }
+
     private async void UnityServicesInit()
     {
         await UnityServices.InitializeAsync();
@@ -77,16 +85,19 @@ public class MenuManager : MonoBehaviour
         }
         else
         {
-            _signInGroup.SetActive(true);   
+            _signInGroup.SetActive(true);
         }
+
         UpdateProfileNameText();
-        
     }
 
     public void UpdateProfileNameText()
     {
-        _nameText.text = AuthenticationService.Instance.IsSignedIn ? AuthenticationService.Instance.Profile : "-Not Sign In-";
+        _nameText.text = AuthenticationService.Instance.IsSignedIn
+            ? AuthenticationService.Instance.Profile
+            : "-Not Sign In-";
     }
+
     public async void SignInButtonClicked()
     {
         if (string.IsNullOrEmpty(_nameInputText.text))
@@ -131,8 +142,10 @@ public class MenuManager : MonoBehaviour
             throw;
         }
     }
+
     private void Update()
     {
+        CheckLobbyUpdate();
         if (m_pressAnyKeyActive)
         {
             if (Input.anyKey)
@@ -144,11 +157,110 @@ public class MenuManager : MonoBehaviour
         }
     }
 
-    public void OnClickHost()
+    public async void CheckLobbyUpdate()
+    {
+        if (lobby == null) return;
+        if (Time.realtimeSinceStartup >= nextHeartbeat && isHost)
+        {
+            nextHeartbeat = Time.realtimeSinceStartup + 15;
+            /* Keep connection to lobby alive */
+            await LobbyService.Instance.SendHeartbeatPingAsync(lobby.Id);
+        }
+
+        if (Time.realtimeSinceStartup >= nextLobbyRefresh)
+        {
+            this.nextLobbyRefresh = Time.realtimeSinceStartup + 2; /* Update after every 2 seconds */
+            this.LobbyUpdate();
+            this.ReceiveIncomingDetail();
+        }
+    }
+    /* Tashi setup/update PlayerDataObject */
+    public async void LobbyUpdate()
+    {
+        var outgoingSessionDetails = NetworkTransport.OutgoingSessionDetails;
+
+        var updatePlayerOptions = new UpdatePlayerOptions();
+        if (outgoingSessionDetails.AddTo(updatePlayerOptions))
+        {
+            // Debug.Log("= PlayerData outgoingSessionDetails AddTo TRUE so can UpdatePLayerAsync");
+            lobby = await LobbyService.Instance.UpdatePlayerAsync(lobby.Id,
+                AuthenticationService.Instance.PlayerId,
+                updatePlayerOptions);
+        }
+
+        if (isHost)
+        {
+            var updateLobbyOptions = new UpdateLobbyOptions();
+            if (outgoingSessionDetails.AddTo(updateLobbyOptions))
+            {
+                // Debug.Log("= Lobby outgoingSessionDetails AddTo TRUE and Update Lobby Async.");
+                lobby = await LobbyService.Instance.UpdateLobbyAsync(lobby.Id, updateLobbyOptions);
+            }
+        }
+    }
+    /* Tashi Update/get lobby session details */
+    public async void ReceiveIncomingDetail()
+    {
+        try
+        {
+            if (NetworkTransport.SessionHasStarted) return;
+
+            // Debug.LogWarning("Receive Incoming Detail");
+
+            lobby = await LobbyService.Instance.GetLobbyAsync(lobby.Id);
+            var incomingSessionDetails = IncomingSessionDetails.FromUnityLobby(lobby);
+
+            // This should be replaced with whatever logic you use to determine when a lobby is locked in.
+            // if (this._playerCount > 1 && incomingSessionDetails.AddressBook.Count == lobby.Players.Count)
+            if (incomingSessionDetails.AddressBook.Count == 2)
+            {
+                NetworkTransport.UpdateSessionDetails(incomingSessionDetails);
+            }
+
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public async void OnClickHost()
     {
         NetworkManager.Singleton.StartHost();
         AudioManager.Instance.PlaySoundEffect(m_confirmClip);
         LoadingSceneManager.Instance.LoadScene(nextScene);
+    }
+    public async void OnClickTashiHost()
+    {
+        NetworkManager.Singleton.StartHost();
+        AudioManager.Instance.PlaySoundEffect(m_confirmClip);
+
+        /* Create Lobby */
+        int maxPlayerInRoom = 8;
+        if (int.TryParse(_maxPlayerInRoomInputField.text, out int rs))
+        {
+            maxPlayerInRoom = rs;
+        }
+        else
+        {
+            maxPlayerInRoom = 8;
+        }
+
+        _maxPlayerInRoomInputField.text = maxPlayerInRoom.ToString();
+        var lobbyOptions = new CreateLobbyOptions
+        {
+            IsPrivate = false,
+        };
+        string lobbyName = this.LobbyName();
+        await LobbyService.Instance.CreateLobbyAsync(lobbyName, maxPlayerInRoom, lobbyOptions);
+        this.isHost = true;
+        /* End Create Lobby */
+
+        LoadingSceneManager.Instance.LoadScene(nextScene);
+    }
+
+    public string LobbyName()
+    {
+        return AuthenticationService.Instance.Profile + "_lobby_" + Random.Range(1, 100);
     }
 
     public void OnClickJoin()
