@@ -1,7 +1,12 @@
+using System;
 using Unity.Netcode;
 
 using UnityEngine;
 using System.Collections;
+using TMPro;
+using Unity.Services.Authentication;
+using Unity.Services.Core;
+using UnityEngine.UI;
 
 public class MenuManager : MonoBehaviour
 {
@@ -19,6 +24,21 @@ public class MenuManager : MonoBehaviour
 
     [SerializeField]
     private SceneName nextScene = SceneName.CharacterSelection;
+
+    [Header("Sign in")] 
+    [SerializeField] private GameObject _signInGroup;
+    [SerializeField] private Button _signInButton;
+    [SerializeField] private TMP_InputField _nameInputText;
+    [SerializeField] private TextMeshProUGUI _nameText;
+
+    private void Awake()
+    {
+        UnityServicesInit();
+    }
+    private async void UnityServicesInit()
+    {
+        await UnityServices.InitializeAsync();
+    }
 
     private IEnumerator Start()
     {
@@ -48,17 +68,78 @@ public class MenuManager : MonoBehaviour
         // Doing this because every time the network session ends the loading manager stops
         // detecting the events
         LoadingSceneManager.Instance.Init();
+
+        if (AuthenticationService.Instance.IsSignedIn)
+        {
+            _signInGroup.SetActive(false);
+            TriggerMainMenuTransitionAnimation();
+            m_pressAnyKeyActive = false;
+        }
+        else
+        {
+            _signInGroup.SetActive(true);   
+        }
+        UpdateProfileNameText();
+        
     }
 
+    public void UpdateProfileNameText()
+    {
+        _nameText.text = AuthenticationService.Instance.IsSignedIn ? AuthenticationService.Instance.Profile : "-Not Sign In-";
+    }
+    public async void SignInButtonClicked()
+    {
+        if (string.IsNullOrEmpty(_nameInputText.text))
+        {
+            Debug.Log($"Signing in with the default profile");
+            // await UnityServices.InitializeAsync();
+        }
+        else
+        {
+            Debug.Log($"Signing in with profile '{_nameInputText.text}'");
+            /* Init Unity Services. But now no need cause inited in Awake() */
+            // var options = new InitializationOptions();
+            // options.SetProfile(_nameTextField.text);
+            // await UnityServices.InitializeAsync(options);
+
+            /* Switch to new Profile name. Profile init in awake() is default */
+            AuthenticationService.Instance.SwitchProfile(_nameInputText.text);
+        }
+
+        try
+        {
+            _signInButton.interactable = false;
+            _nameText.text = $"Signing in .... ";
+            AuthenticationService.Instance.SignedIn += delegate
+            {
+                Debug.Log("SignedIn OK!");
+                _signInButton.interactable = true;
+                UpdateProfileNameText();
+                ListRoomManager.Instance.ListLobbies();
+                _signInGroup.SetActive(false);
+                TriggerMainMenuTransitionAnimation();
+                m_pressAnyKeyActive = false;
+            };
+
+            await AuthenticationService.Instance.SignInAnonymouslyAsync();
+        }
+        catch (Exception e)
+        {
+            _signInButton.interactable = true;
+            _nameText.text = $"Sign in failed : {e.ToString()} ";
+            Debug.LogException(e);
+            throw;
+        }
+    }
     private void Update()
     {
         if (m_pressAnyKeyActive)
         {
             if (Input.anyKey)
             {
-                TriggerMainMenuTransitionAnimation();
-
-                m_pressAnyKeyActive = false;
+                // TriggerMainMenuTransitionAnimation();
+                //
+                // m_pressAnyKeyActive = false;
             }
         }
     }
