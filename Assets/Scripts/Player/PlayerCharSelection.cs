@@ -149,6 +149,7 @@ public class PlayerCharSelection : NetworkBehaviour
     void Shutdown()
     {
         NetworkManager.Singleton.Shutdown();
+        MyNetworkManager.Instance.ExitCurrentLobby();
         LoadingSceneManager.Instance.LoadScene(SceneName.Menu, false);
     }
 

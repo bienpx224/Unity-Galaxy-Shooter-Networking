@@ -26,6 +26,7 @@ public class ListRoomManager : Singleton<ListRoomManager>
             {
                 ListLobbies();
             }
+
             yield return new WaitForSeconds(delayTime);
         }
     }
@@ -55,7 +56,7 @@ public class ListRoomManager : Singleton<ListRoomManager>
             {
                 child.gameObject.SetActive(false);
             }
-        
+
             listRoomItem.Clear();
             /* Show every lobby item in list */
             int i = 0;
@@ -64,21 +65,40 @@ public class ListRoomManager : Singleton<ListRoomManager>
                 RoomItem roomItem;
                 try
                 {
-                    roomItem = _listRoomContentTransform.GetChild(i).GetComponent<RoomItem>();
+                    Transform obj = _listRoomContentTransform.GetChild(i);
+                    if (obj is not null)
+                    {
+                        roomItem = obj.GetComponent<RoomItem>();
+                    }
+                    else
+                    {
+                        Debug.Log("Ko tim thay item co san trong GetChild()");
+                        roomItem = Instantiate(_roomItemPrefab, _listRoomContentTransform);
+                    }
                 }
                 catch (Exception)
                 {
+                    Debug.Log("Ko tim thay item co san trong GetChild()");
                     roomItem = Instantiate(_roomItemPrefab, _listRoomContentTransform);
                 }
 
-                roomItem.SetData(lobby.Id, lobby.LobbyCode, lobby.Name);
-                roomItem.SetJoinClick(OnClickJoinLobby);
-                listRoomItem.Add(roomItem);
+                try
+                {
+                    roomItem.SetData(lobby.Id, lobby.LobbyCode, lobby.Name);
+                    roomItem.SetJoinClick(OnClickJoinLobby);
+                    listRoomItem.Add(roomItem);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("List Lobby : Exception at foreach List Room : " + e.ToString());
+                }
+
+                i++;
             }
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Debug.LogError("Exception : " + e.ToString());
+            // Debug.LogError("Exception : " + e.ToString());
         }
     }
 
@@ -90,8 +110,8 @@ public class ListRoomManager : Singleton<ListRoomManager>
     public async void JoinLobbyByLobbyId(string lobbyId)
     {
         StartCoroutine(Join(lobbyId));
-        
     }
+
     private IEnumerator Join(string id)
     {
         LoadingFadeEffect.Instance.FadeAll();
@@ -104,8 +124,24 @@ public class ListRoomManager : Singleton<ListRoomManager>
 
     private async void JoinLobby(string id)
     {
-        Lobby _lobby = await LobbyService.Instance.JoinLobbyByIdAsync(id);
-        MenuManager.Instance.lobby = _lobby;
-        Debug.Log($"Join lobby Id {_lobby.Id} has code {_lobby.LobbyCode}");
+        Lobby _lobby = null;
+        try
+        {
+            _lobby = await LobbyService.Instance.JoinLobbyByIdAsync(id);
+            Debug.Log("Joined lobby : " + _lobby.Id + " and Name : " + _lobby.Name);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Join Lobby Error: " + e.ToString());
+        }
+        try
+        {
+            MenuManager.Instance.lobby = _lobby;
+            // LoadingSceneManager.Instance.LoadScene(SceneName.CharacterSelection, false);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Join Lobby Set data MenuManager Error: " + e.ToString());
+        }
     }
 }

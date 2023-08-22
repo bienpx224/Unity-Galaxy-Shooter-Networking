@@ -283,7 +283,7 @@
       "hash": "f45424822189ebd875d864a17d7f03b72eafbff7"
     },
     "dev.tashi.network.transport": {
-      "version": "file:/Users/bienpham/Downloads/TashiNetworkTransport-UnityPlugin-0.3.2.tgz",
+      "version": "file:/Users/bienpham/Downloads/TashiNetworkTransport-UnityPlugin-0.0.12b16282.tgz",
       "depth": 0,
       "source": "local-tarball",
       "dependencies": {

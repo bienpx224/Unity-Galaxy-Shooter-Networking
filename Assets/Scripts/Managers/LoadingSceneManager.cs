@@ -35,6 +35,7 @@ public class LoadingSceneManager : SingletonPersistent<LoadingSceneManager>
 
     public void LoadScene(SceneName sceneToLoad, bool isNetworkSessionActive = true)
     {
+        Debug.Log("Load Scene : " + sceneToLoad.ToString());
         StartCoroutine(Loading(sceneToLoad, isNetworkSessionActive));
     }
 
