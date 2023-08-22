@@ -202,7 +202,7 @@ public class MenuManager : Singleton<MenuManager>
         MyNetworkManager.Instance.isLobbyHost = true;
         /* End Create Lobby */
 
-        LoadingSceneManager.Instance.LoadScene(nextScene);
+        // LoadingSceneManager.Instance.LoadScene(nextScene);
     }
 
     public string LobbyName()
